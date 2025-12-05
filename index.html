@@ -376,7 +376,7 @@
 
     /* bigger third-place panel */
     .thirds-list {
-      max-height: 340px;      /* <-- made taller */
+      max-height: 340px;
       overflow: auto;
       padding: 7px;
       background: rgba(15, 23, 42, 0.97);
@@ -563,7 +563,7 @@
     .team-line {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 8px;
       margin-bottom: 3px;
     }
 
@@ -619,23 +619,26 @@
       color: #020617;
     }
 
+    /* nicer score style */
     .score-input {
-      width: 45px;
-      padding: 4px;
-      border-radius: 8px;
-      border: 1px solid rgba(55, 65, 81, 0.98);
-      background: rgba(15, 23, 42, 0.96);
+      width: 44px;
+      padding: 5px 0;
+      border-radius: 999px;
+      border: 1px solid rgba(55, 65, 81, 0.95);
+      background: rgba(15, 23, 42, 0.92);
       color: #e5e7eb;
       font-size: 0.78rem;
+      font-weight: 600;
       text-align: center;
       outline: none;
-      transition: border 0.12s, box-shadow 0.12s, background 0.12s;
+      transition: border 0.12s, box-shadow 0.12s, background 0.12s, transform 0.08s;
     }
 
     .score-input:focus {
       border-color: var(--accent-1);
       background: #020617;
       box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.4);
+      transform: translateY(-0.5px);
     }
 
     .score-input::-webkit-outer-spin-button,
@@ -797,6 +800,68 @@
       white-space: nowrap;
     }
 
+    /* Champion overlay (glassy popup) */
+
+    .champion-overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(circle at top, rgba(15, 23, 42, 0.82), rgba(15, 23, 42, 0.95));
+      backdrop-filter: blur(18px);
+      z-index: 40;
+    }
+
+    .champion-overlay.show {
+      display: flex;
+    }
+
+    .champion-modal {
+      background: rgba(15, 23, 42, 0.98);
+      border-radius: 24px;
+      border: 1px solid rgba(250, 204, 21, 0.65);
+      padding: 18px 20px 14px;
+      max-width: 360px;
+      width: 90%;
+      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.9);
+      text-align: center;
+    }
+
+    .champion-modal-label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: #fef3c7;
+      margin-bottom: 8px;
+    }
+
+    .champion-modal-main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .champion-modal-name {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #facc15;
+    }
+
+    .champion-modal-note {
+      font-size: 0.76rem;
+      color: var(--text-soft);
+      margin-bottom: 10px;
+    }
+
+    .champion-modal-close {
+      width: 100%;
+      justify-content: center;
+    }
+
     /* ANIMATIONS */
 
     @keyframes fadeInDown {
@@ -834,7 +899,7 @@
 
     @keyframes pulseTrophy {
       0%,100% { transform: translateY(0) scale(1); }
-      50% { transform: translateY(-1px) scale(1.04); }
+      50%     { transform: translateY(-1px) scale(1.04); }
     }
 
     @media (max-width: 600px) {
@@ -987,6 +1052,22 @@
     </section>
   </div>
 
+  <!-- Champion glass overlay -->
+  <div id="championOverlay" class="champion-overlay">
+    <div class="champion-modal">
+      <div class="champion-modal-label">World Cup 2026 Champion</div>
+      <div id="championModalMain" class="champion-modal-main">
+        <!-- JS inserts flag + name -->
+      </div>
+      <div class="champion-modal-note">
+        This is your final winner for this run. You can still change scores if you want to adjust it.
+      </div>
+      <button id="closeChampionOverlayBtn" class="outline-btn champion-modal-close">
+        Got it
+      </button>
+    </div>
+  </div>
+
   <script>
     // ---------- GROUP DATA ----------
     const OFFICIAL_GROUPS = {
@@ -1108,8 +1189,13 @@
     const predictionStatusEl = document.getElementById("predictionStatus");
     const predictionListContainer = document.getElementById("predictionListContainer");
 
+    const championOverlay = document.getElementById("championOverlay");
+    const championModalMain = document.getElementById("championModalMain");
+    const closeChampionOverlayBtn = document.getElementById("closeChampionOverlayBtn");
+
     const PREDICTIONS_KEY = "wc26_predictions_v1";
     let predictions = [];
+    let lastChampion = null;
 
     function showView(name) {
       if (name === "groups") {
@@ -1355,6 +1441,7 @@
         "Play through each round to reveal your champion.";
       championNameEl.classList.remove("champion-name");
       championNameEl.classList.add("champion-placeholder");
+      lastChampion = null;
 
       propagateWinnersAndRender();
       showView("knockout");
@@ -1415,12 +1502,18 @@
           championNameEl.appendChild(text);
           championNameEl.classList.remove("champion-placeholder");
           championNameEl.classList.add("champion-name");
+
+          if (champ !== lastChampion) {
+            lastChampion = champ;
+            showChampionOverlay(champ);
+          }
         } else {
           championBannerEl.classList.remove("glow");
           championNameEl.textContent =
             "Play through each round to reveal your champion.";
           championNameEl.classList.remove("champion-name");
           championNameEl.classList.add("champion-placeholder");
+          lastChampion = null;
         }
       }
     }
@@ -1580,6 +1673,33 @@
       propagateWinnersAndRender();
     });
 
+    // ---------- Champion overlay ----------
+    function showChampionOverlay(name) {
+      championModalMain.innerHTML = "";
+      const flag = createFlagElement(name, true);
+      flag.style.width = "40px";
+      flag.style.height = "28px";
+      flag.style.boxShadow = "0 0 0 3px rgba(250, 204, 21, 0.5)";
+
+      const label = document.createElement("div");
+      label.className = "champion-modal-name";
+      label.textContent = name;
+
+      championModalMain.appendChild(flag);
+      championModalMain.appendChild(label);
+
+      championOverlay.classList.add("show");
+    }
+
+    function hideChampionOverlay() {
+      championOverlay.classList.remove("show");
+    }
+
+    closeChampionOverlayBtn.addEventListener("click", hideChampionOverlay);
+    championOverlay.addEventListener("click", e => {
+      if (e.target === championOverlay) hideChampionOverlay();
+    });
+
     // ---------- PREDICTIONS ----------
     function loadPredictions() {
       const raw = localStorage.getItem(PREDICTIONS_KEY);
@@ -1688,6 +1808,8 @@
         "Generate the bracket and then enter scores / click winners until your champion appears here.";
       championNameEl.classList.remove("champion-name");
       championNameEl.classList.add("champion-placeholder");
+      lastChampion = null;
+      hideChampionOverlay();
 
       thirdsListEl.innerHTML =
         '<span style="font-size: 0.8rem; color:#6b7280;">Confirm groups first to show all 3rd-place teams.</span>';
